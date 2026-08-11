@@ -6,7 +6,13 @@ URL = "https://app.arzt-direkt.de/ocm-otk/booking?katid=68d12673a45e3ed89827cbd5
 
 
 def send_notification(message):
-    topic = os.environ["NTFY_TOPIC"]
+    topic = os.environ.get("NTFY_TOPIC")
+
+    if not topic:
+        raise RuntimeError("NTFY_TOPIC ist in GitHub nicht vorhanden!")
+
+    print("NTFY_TOPIC wurde von GitHub geladen.")
+    print("Sende Nachricht an ntfy...")
 
     response = requests.post(
         f"https://ntfy.sh/{topic}",
@@ -18,6 +24,9 @@ def send_notification(message):
         },
         timeout=20
     )
+
+    print("NTFY HTTP-Status:", response.status_code)
+    print("NTFY Antwort:", response.text)
 
     response.raise_for_status()
 
@@ -38,24 +47,20 @@ def check_ocm():
             timeout=60000
         )
 
-        # Warten, bis die erste Auswahlseite geladen ist
         page.get_by_text(
             "Waren Sie schon einmal bei uns?"
         ).wait_for(timeout=30000)
 
-        # Auswahl 1
         print("Klicke auf Nein...")
         page.get_by_text("Nein", exact=True).click()
 
         page.wait_for_timeout(1000)
 
-        # Auswahl 2
         print("Klicke auf Gesetzlich...")
         page.get_by_text("Gesetzlich", exact=True).click()
 
         print("Warte auf Terminseite...")
 
-        # Die Seite wechselt automatisch weiter.
         target = "Gesetzlich Versichert ohne Selektivvertrag"
 
         page.get_by_text(
@@ -104,5 +109,8 @@ def check_ocm():
 
 
 if __name__ == "__main__":
+    # Nur zum Testen der Push-Verbindung.
+    # Wenn alles funktioniert, entfernen wir diese Zeile wieder.
     send_notification("TEST: Dein OCM-Terminwächter funktioniert!")
+
     check_ocm()
