@@ -4,6 +4,7 @@ from playwright.sync_api import sync_playwright
 
 URL = "https://app.arzt-direkt.de/ocm-otk/booking?katid=68d12673a45e3ed89827cbd5"
 
+
 def send_notification(message):
     topic = os.environ["NTFY_TOPIC"]
 
@@ -18,52 +19,79 @@ def send_notification(message):
         timeout=20
     )
 
+
 def check_ocm():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
 
-        page.goto(URL, wait_until="networkidle", timeout=60000)
+        page = browser.new_page(
+            viewport={"width": 1400, "height": 1000}
+        )
 
-        # "Waren Sie schon einmal bei uns?" -> Nein
+        print("OCM-Seite wird geöffnet...")
+
+        page.goto(
+            URL,
+            wait_until="networkidle",
+            timeout=60000
+        )
+
+        # Waren Sie schon einmal bei uns? -> Nein
+        print("Klicke auf Nein...")
         page.get_by_text("Nein", exact=True).click()
 
         # Versicherung -> Gesetzlich
+        print("Klicke auf Gesetzlich...")
         page.get_by_text("Gesetzlich", exact=True).click()
 
-        # Start
-        page.get_by_text("Start", exact=True).click()
+        # Start-Button
+        print("Klicke auf Start...")
+        page.get_by_role("button", name="Start").click()
 
+        # Warten, bis die nächste Seite geladen ist
         page.wait_for_timeout(5000)
 
-        # Text der geladenen Terminseite auslesen
+        print("Terminseite geladen.")
+
+        # Gesamten sichtbaren Text auslesen
         text = page.locator("body").inner_text()
 
+        print("----- SEITENTEXT -----")
         print(text)
+        print("----------------------")
 
         target = "Gesetzlich Versichert ohne Selektivvertrag"
 
+        # Prüfen, ob die gewünschte Terminart überhaupt vorhanden ist
         if target not in text:
-            print("Gesuchte Terminart wurde nicht gefunden.")
+            print("FEHLER: Die gewünschte Terminart wurde nicht gefunden.")
             browser.close()
-            return
+            raise RuntimeError(
+                "Die Terminart 'Gesetzlich Versichert ohne Selektivvertrag' "
+                "wurde auf der Seite nicht gefunden."
+            )
 
-        # Wir schauen uns den Bereich nach unserer Terminart an.
+        # Nur den Bereich direkt nach der gewünschten Terminart prüfen
         position = text.find(target)
         relevant_text = text[position:position + 500]
 
-        print("Relevanter Bereich:")
+        print("----- RELEVANTER BEREICH -----")
         print(relevant_text)
+        print("------------------------------")
 
-        if "Keine freien Termine" not in relevant_text:
-            print("MÖGLICHER TERMIN GEFUNDEN!")
-            send_notification(
-                "Bei OCM München könnte ein Termin bei Team Prof. Dr. Dienst / "
-                "Hr. Dakkak für gesetzlich Versicherte ohne Selektivvertrag "
-                "frei sein. Jetzt Terminportal prüfen:\n" + URL
-            )
-        else:
+        if "Keine freien Termine" in relevant_text:
             print("Noch keine freien Termine.")
+
+        else:
+            print("ACHTUNG: Möglicher freier Termin gefunden!")
+
+            send_notification(
+                "OCM München: Es könnte ein Termin bei Team Prof. Dr. Dienst / "
+                "Hr. Dakkak für gesetzlich Versicherte ohne Selektivvertrag "
+                "frei sein.\n\n"
+                "Jetzt sofort Terminportal prüfen:\n"
+                + URL
+            )
 
         browser.close()
 
