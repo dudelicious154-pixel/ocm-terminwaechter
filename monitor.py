@@ -8,7 +8,7 @@ URL = "https://app.arzt-direkt.de/ocm-otk/booking?katid=68d12673a45e3ed89827cbd5
 def send_notification(message):
     topic = os.environ["NTFY_TOPIC"]
 
-    requests.post(
+    response = requests.post(
         f"https://ntfy.sh/{topic}",
         data=message.encode("utf-8"),
         headers={
@@ -18,6 +18,8 @@ def send_notification(message):
         },
         timeout=20
     )
+
+    response.raise_for_status()
 
 
 def check_ocm():
@@ -36,24 +38,24 @@ def check_ocm():
             timeout=60000
         )
 
-        # Waren Sie schon einmal bei uns? -> Nein
         print("Klicke auf Nein...")
-        page.get_by_text("Nein", exact=True).click()
+        page.get_by_role("button", name="Nein").click()
 
-        # Versicherung -> Gesetzlich
+        page.wait_for_timeout(500)
+
         print("Klicke auf Gesetzlich...")
-        page.get_by_text("Gesetzlich", exact=True).click()
+        page.get_by_role("button", name="Gesetzlich").click()
 
-        # Start-Button
-        print("Klicke auf Start...")
-        page.get_by_role("button", name="Start").click()
+        print("Warte auf Terminseite...")
 
-        # Warten, bis die nächste Seite geladen ist
-        page.wait_for_timeout(5000)
+        # Nach der zweiten Auswahl wechselt die Seite automatisch
+        page.get_by_text(
+            "Gesetzlich Versichert ohne Selektivvertrag",
+            exact=False
+        ).wait_for(timeout=30000)
 
-        print("Terminseite geladen.")
+        print("Terminseite wurde geladen.")
 
-        # Gesamten sichtbaren Text auslesen
         text = page.locator("body").inner_text()
 
         print("----- SEITENTEXT -----")
@@ -62,16 +64,12 @@ def check_ocm():
 
         target = "Gesetzlich Versichert ohne Selektivvertrag"
 
-        # Prüfen, ob die gewünschte Terminart überhaupt vorhanden ist
         if target not in text:
-            print("FEHLER: Die gewünschte Terminart wurde nicht gefunden.")
             browser.close()
             raise RuntimeError(
-                "Die Terminart 'Gesetzlich Versichert ohne Selektivvertrag' "
-                "wurde auf der Seite nicht gefunden."
+                "Die gewünschte Terminart wurde nicht gefunden."
             )
 
-        # Nur den Bereich direkt nach der gewünschten Terminart prüfen
         position = text.find(target)
         relevant_text = text[position:position + 500]
 
@@ -92,6 +90,8 @@ def check_ocm():
                 "Jetzt sofort Terminportal prüfen:\n"
                 + URL
             )
+
+            print("Push-Nachricht wurde gesendet.")
 
         browser.close()
 
