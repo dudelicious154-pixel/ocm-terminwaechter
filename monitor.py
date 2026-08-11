@@ -104,4 +104,5 @@ def check_ocm():
 
 
 if __name__ == "__main__":
+    send_notification("TEST: Dein OCM-Terminwächter funktioniert!")
     check_ocm()
