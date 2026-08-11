@@ -38,19 +38,28 @@ def check_ocm():
             timeout=60000
         )
 
+        # Warten, bis die erste Auswahlseite geladen ist
+        page.get_by_text(
+            "Waren Sie schon einmal bei uns?"
+        ).wait_for(timeout=30000)
+
+        # Auswahl 1
         print("Klicke auf Nein...")
-        page.get_by_role("button", name="Nein").click()
+        page.get_by_text("Nein", exact=True).click()
 
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(1000)
 
+        # Auswahl 2
         print("Klicke auf Gesetzlich...")
-        page.get_by_role("button", name="Gesetzlich").click()
+        page.get_by_text("Gesetzlich", exact=True).click()
 
         print("Warte auf Terminseite...")
 
-        # Nach der zweiten Auswahl wechselt die Seite automatisch
+        # Die Seite wechselt automatisch weiter.
+        target = "Gesetzlich Versichert ohne Selektivvertrag"
+
         page.get_by_text(
-            "Gesetzlich Versichert ohne Selektivvertrag",
+            target,
             exact=False
         ).wait_for(timeout=30000)
 
@@ -61,8 +70,6 @@ def check_ocm():
         print("----- SEITENTEXT -----")
         print(text)
         print("----------------------")
-
-        target = "Gesetzlich Versichert ohne Selektivvertrag"
 
         if target not in text:
             browser.close()
