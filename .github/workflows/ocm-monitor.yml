@@ -1,0 +1,30 @@
+name: OCM Terminwächter
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  check-ocm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Programme installieren
+        run: |
+          pip install requests playwright
+          playwright install --with-deps chromium
+
+      - name: OCM prüfen
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python monitor.py
