@@ -9,14 +9,8 @@ def send_telegram(message):
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
 
-    if not token:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN fehlt in GitHub!")
-
-    if not chat_id:
-        raise RuntimeError("TELEGRAM_CHAT_ID fehlt in GitHub!")
-
-    print("Telegram-Daten wurden von GitHub geladen.")
-    print("Sende Telegram-Nachricht...")
+    if not token or not chat_id:
+        raise RuntimeError("Telegram-Zugangsdaten fehlen.")
 
     response = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage",
@@ -28,9 +22,6 @@ def send_telegram(message):
         timeout=20
     )
 
-    print("Telegram HTTP-Status:", response.status_code)
-    print("Telegram Antwort:", response.text)
-
     response.raise_for_status()
 
 
@@ -38,78 +29,100 @@ def check_ocm():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
 
-        page = browser.new_page(
-            viewport={"width": 1400, "height": 1000}
-        )
+        try:
+            page = browser.new_page(
+                viewport={"width": 1400, "height": 1000}
+            )
 
-        print("OCM-Seite wird geöffnet...")
+            print("OCM-Seite wird geöffnet...")
 
-        page.goto(
-            URL,
-            wait_until="networkidle",
-            timeout=60000
-        )
+            page.goto(
+                URL,
+                wait_until="networkidle",
+                timeout=60000
+            )
 
-        page.get_by_text(
-            "Waren Sie schon einmal bei uns?"
-        ).wait_for(timeout=30000)
+            page.get_by_text(
+                "Waren Sie schon einmal bei uns?"
+            ).wait_for(timeout=30000)
 
-        print("Klicke auf Nein...")
-        page.get_by_text("Nein", exact=True).click()
+            print("Klicke auf Nein...")
+            page.get_by_text("Nein", exact=True).click()
 
-        page.wait_for_timeout(1000)
+            page.wait_for_timeout(1000)
 
-        print("Klicke auf Gesetzlich...")
-        page.get_by_text("Gesetzlich", exact=True).click()
+            print("Klicke auf Gesetzlich...")
+            page.get_by_text("Gesetzlich", exact=True).click()
 
-        print("Warte auf Terminseite...")
+            print("Warte auf Terminseite...")
 
-        target = "Gesetzlich Versichert ohne Selektivvertrag"
+            target = "Gesetzlich Versichert ohne Selektivvertrag"
 
-        page.get_by_text(
-            target,
-            exact=False
-        ).wait_for(timeout=30000)
+            page.get_by_text(
+                target,
+                exact=False
+            ).wait_for(timeout=30000)
 
-        print("Terminseite wurde geladen.")
+            print("Terminseite wurde geladen.")
 
-        text = page.locator("body").inner_text()
+            text = page.locator("body").inner_text()
 
-        print("----- SEITENTEXT -----")
-        print(text)
-        print("----------------------")
+            if target not in text:
+                raise RuntimeError(
+                    "Die gewünschte Terminart wurde nicht gefunden."
+                )
 
-        if target not in text:
+            position = text.find(target)
+            relevant_text = text[position:position + 500]
+
+            print("----- RELEVANTER BEREICH -----")
+            print(relevant_text)
+            print("------------------------------")
+
+            if "Keine freien Termine" in relevant_text:
+                print("Noch keine freien Termine.")
+
+            else:
+                print("ACHTUNG: Möglicher freier Termin gefunden!")
+
+                send_telegram(
+                    "🚨 OCM-TERMIN MÖGLICHERWEISE FREI!\n\n"
+                    "Team Prof. Dr. Dienst / Hr. Dakkak\n"
+                    "Gesetzlich versichert ohne Selektivvertrag\n\n"
+                    "Jetzt sofort prüfen:\n"
+                    + URL
+                )
+
+                print("Telegram-Warnung wurde gesendet.")
+
+        finally:
             browser.close()
-            raise RuntimeError(
-                "Die gewünschte Terminart wurde nicht gefunden."
-            )
 
-        position = text.find(target)
-        relevant_text = text[position:position + 500]
 
-        print("----- RELEVANTER BEREICH -----")
-        print(relevant_text)
-        print("------------------------------")
+def main():
+    try:
+        check_ocm()
 
-        if "Keine freien Termine" in relevant_text:
-            print("Noch keine freien Termine.")
+    except Exception as error:
+        print("FEHLER:", error)
 
-        else:
-            print("ACHTUNG: Möglicher freier Termin gefunden!")
-
+        try:
             send_telegram(
-                "🚨 OCM-TERMIN MÖGLICHERWEISE FREI!\n\n"
-                "Team Prof. Dr. Dienst / Hr. Dakkak\n"
-                "Gesetzlich versichert ohne Selektivvertrag\n\n"
-                "Jetzt sofort prüfen:\n"
-                + URL
+                "⚠️ OCM-WÄCHTER FEHLER\n\n"
+                "Der Terminwächter konnte die OCM-Seite gerade "
+                "nicht erfolgreich prüfen.\n\n"
+                "Das bedeutet NICHT, dass ein Termin frei ist.\n"
+                "GitHub versucht es beim nächsten Durchlauf erneut."
+            )
+        except Exception as telegram_error:
+            print(
+                "Auch die Telegram-Fehlermeldung konnte nicht "
+                "gesendet werden:",
+                telegram_error
             )
 
-            print("Telegram-Nachricht wurde gesendet.")
-
-        browser.close()
+        raise
 
 
 if __name__ == "__main__":
-    check_ocm()
+    main()
