@@ -5,28 +5,31 @@ from playwright.sync_api import sync_playwright
 URL = "https://app.arzt-direkt.de/ocm-otk/booking?katid=68d12673a45e3ed89827cbd5"
 
 
-def send_notification(message):
-    topic = os.environ.get("NTFY_TOPIC")
+def send_telegram(message):
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
 
-    if not topic:
-        raise RuntimeError("NTFY_TOPIC ist in GitHub nicht vorhanden!")
+    if not token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN fehlt in GitHub!")
 
-    print("NTFY_TOPIC wurde von GitHub geladen.")
-    print("Sende Nachricht an ntfy...")
+    if not chat_id:
+        raise RuntimeError("TELEGRAM_CHAT_ID fehlt in GitHub!")
+
+    print("Telegram-Daten wurden von GitHub geladen.")
+    print("Sende Telegram-Nachricht...")
 
     response = requests.post(
-        f"https://ntfy.sh/{topic}",
-        data=message.encode("utf-8"),
-        headers={
-            "Title": "OCM Termin gefunden!",
-            "Priority": "urgent",
-            "Tags": "rotating_light"
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data={
+            "chat_id": chat_id,
+            "text": message,
+            "disable_web_page_preview": True
         },
         timeout=20
     )
 
-    print("NTFY HTTP-Status:", response.status_code)
-    print("NTFY Antwort:", response.text)
+    print("Telegram HTTP-Status:", response.status_code)
+    print("Telegram Antwort:", response.text)
 
     response.raise_for_status()
 
@@ -95,22 +98,21 @@ def check_ocm():
         else:
             print("ACHTUNG: Möglicher freier Termin gefunden!")
 
-            send_notification(
-                "OCM München: Es könnte ein Termin bei Team Prof. Dr. Dienst / "
-                "Hr. Dakkak für gesetzlich Versicherte ohne Selektivvertrag "
-                "frei sein.\n\n"
-                "Jetzt sofort Terminportal prüfen:\n"
+            send_telegram(
+                "🚨 OCM-TERMIN MÖGLICHERWEISE FREI!\n\n"
+                "Team Prof. Dr. Dienst / Hr. Dakkak\n"
+                "Gesetzlich versichert ohne Selektivvertrag\n\n"
+                "Jetzt sofort prüfen:\n"
                 + URL
             )
 
-            print("Push-Nachricht wurde gesendet.")
+            print("Telegram-Nachricht wurde gesendet.")
 
         browser.close()
 
 
 if __name__ == "__main__":
-    # Nur zum Testen der Push-Verbindung.
-    # Wenn alles funktioniert, entfernen wir diese Zeile wieder.
-    send_notification("TEST: Dein OCM-Terminwächter funktioniert!")
+    # Testnachricht – entfernen wir nach erfolgreichem Test wieder.
+    send_telegram("✅ TEST: Dein OCM-Terminwächter kann dir Telegram-Nachrichten schicken!")
 
     check_ocm()
