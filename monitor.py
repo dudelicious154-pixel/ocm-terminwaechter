@@ -112,7 +112,4 @@ def check_ocm():
 
 
 if __name__ == "__main__":
-    # Testnachricht – entfernen wir nach erfolgreichem Test wieder.
-    send_telegram("✅ TEST: Dein OCM-Terminwächter kann dir Telegram-Nachrichten schicken!")
-
     check_ocm()
